@@ -12,6 +12,14 @@ S3P_SECTORS = {
     "consumer_discretionary": "XLY",
 }
 
+SECTOR_HOLDINGS = {
+    "XLK": ["AAPL", "MSFT", "NVDA", "AVGO", "AMD", "ORCL", "CRM", "ACN", "CSCO", "ADBE", "TXN", "QCOM", "IBM", "INTU", "NOW", "AMAT", "MU", "ADI", "KLAC", "LRCX"],
+    "XLF": ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "SPGI", "BLK", "AXP", "C", "CB", "MMC", "PGR", "AON", "USB", "TFC", "ICE", "CME"],
+    "XLV": ["LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "ABT", "DHR", "PFE", "AMGN", "SYK", "MDT", "ISRG", "CVS", "CI", "ELV", "ZTS", "BSX", "BDX", "REGN"],
+    "XLE": ["XOM", "CVX", "COP", "EOG", "SLB", "MPC", "PSX", "VLO", "PXD", "OXY", "WMB", "KMI", "HES", "DVN", "HAL", "BKR", "FANG", "APA", "MRO", "EQT"],
+    "XLY": ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "SBUX", "TJX", "BKNG", "CMG", "ORLY", "MAR", "GM", "F", "DHI", "YUM", "HLT", "ROST", "AZO", "LEN"],
+}
+
 @app.get("/health")
 def health():
     return {"status": "ok", "time": datetime.utcnow().isoformat()}
@@ -40,26 +48,25 @@ def get_stocks(tickers: str = Query(..., description="Comma-separated tickers"))
 
 @app.get("/top-movers")
 def get_top_movers(sector_etf: str = Query(...), count: int = 8):
-    try:
-        holdings = yf.Ticker(sector_etf).holdings
-        tickers = list(holdings.index[:30]) if holdings is not None else []
-        movers = []
-        for ticker in tickers:
-            try:
-                info = yf.Ticker(ticker).fast_info
-                pct = (info.last_price - info.previous_close) / info.previous_close * 100
-                movers.append({
-                    "ticker":     ticker,
-                    "price":      round(info.last_price, 4),
-                    "pct_change": round(pct, 2),
-                    "volume":     info.last_volume,
-                })
-            except:
-                pass
-        movers.sort(key=lambda x: abs(x.get("pct_change", 0)), reverse=True)
-        return {"sector_etf": sector_etf, "top_movers": movers[:count]}
-    except Exception as e:
-        return {"error": str(e)}
+    etf = sector_etf.upper()
+    tickers = SECTOR_HOLDINGS.get(etf)
+    if not tickers:
+        return {"error": f"No holdings defined for ETF: {etf}"}
+    movers = []
+    for ticker in tickers:
+        try:
+            info = yf.Ticker(ticker).fast_info
+            pct = (info.last_price - info.previous_close) / info.previous_close * 100
+            movers.append({
+                "ticker":     ticker,
+                "price":      round(info.last_price, 4),
+                "pct_change": round(pct, 2),
+                "volume":     info.last_volume,
+            })
+        except:
+            pass
+    movers.sort(key=lambda x: abs(x.get("pct_change", 0)), reverse=True)
+    return {"sector_etf": etf, "top_movers": movers[:count]}
 
 @app.get("/earnings-upcoming")
 def get_earnings_upcoming(days: int = 3):
